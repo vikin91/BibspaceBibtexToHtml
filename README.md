@@ -2,7 +2,7 @@
 
 The BibspaceBibtexToHtml is a wrapper of:
 * Text::BibTeX::BibStyle (authored by  Mark Nodine [CPAN](http://search.cpan.org/~nodine/Text-BibTeX-BibStyle-0.03/)) plus several custom fixes and optimizations
-* good old ocaml-based [bibtex2html](https://www.lri.fr/~filliatr/bibtex2html/) including some very dirty legacy custom fixes
+* good old ocaml-based [bibtex2html](https://www.lri.fr/~filliatr/bibtex2html/) including some very dirty legacy custom fixes (you should not use this!)
 
 ## Short description ##
 

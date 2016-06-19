@@ -12,7 +12,7 @@ use BibSpaceBibtexToHtml;
 use DemoHelper;
 use Storable;
 
-my $how_many = $ARGV[0] // 10;
+my $how_many = $ARGV[0] // -1;
 my @demo_helpers = ();
 
 # use DBI;
@@ -24,7 +24,7 @@ my @demo_helpers = ();
 # $sth->execute();
 # while(my $row = $sth->fetchrow_hashref()) {
 #   my $z = DemoHelper->new();
-#   $z->{id} = "you don't need this";
+#   $z->{id} = $row->{id};
 #   $z->{bib} = $row->{bib};
 #   push @demo_helpers, $z;
 # }
@@ -32,7 +32,7 @@ my @demo_helpers = ();
 
 # store \@demo_helpers, 'test_data.dat';
 my $arr_ref = retrieve('test_data.dat');
-say Dumper $arr_ref;
+
 @demo_helpers = @{$arr_ref};
 # die;
 
@@ -99,8 +99,10 @@ if(@strange_bibz and !@demo_helpers){
 }
 
 my %hist;
-
+my $limiter = $how_many;
 foreach my $z (@demo_helpers){
+
+  last if $limiter == 0;
 
   my $c = BibSpaceBibtexToHtml->new();
   my $bib = $z->{bib};
@@ -139,6 +141,8 @@ foreach my $z (@demo_helpers){
   $z->{gentime_new} = substr($dur_new, 0, 5);
 
   printf("%.2f s/ %.2f s = (OLD/NEW) html generation BibTeX entry: $gues_key.\n", $dur_old, $dur_new);
+
+  $limiter = $limiter - 1;
 }
 
 
@@ -172,7 +176,11 @@ my $num_with_rubbish = 0;
 my $key_with_em = " <br/>\n ";
 my $key_with_rubbish = " <br/>\n ";
 
+
+$limiter = $how_many;
+  
 foreach my $href (@demo_helpers){
+  last if $limiter == 0;
   $out_html .= "<h3>Input bib</h3>\n";
   $out_html .= "<div class=\"INPUT_BIB\" style=\"width: 900px; background: #fff;\">\n\t";
   $out_html .= "<pre>".$href->{bib}."</pre>\n" if defined $href->{bib};
@@ -221,13 +229,14 @@ foreach my $href (@demo_helpers){
   }
 
   $out_html .= "<hr/>\n";
+  $limiter = $limiter - 1;
 }
 
 $out_html .= "<h3>Checks:</h3>\n";
-$out_html .= "<h4>If all below fields are 0 or empty then the 'test' is passed.</h4>\n";
+$out_html .= "<h4>If all below fields are 0 or empty then the 'test' is passed. The remainings might be still here due to errors in bibtex entries</h4>\n";
 $out_html .= "num_with_em: $num_with_em <br/>\n";
 $out_html .= "key_with_em: $key_with_em <br/>\n";
-$out_html .= "num_with_rubbish: $num_with_rubbish (possibly due to other languages than Polish and German)<br/>\n";
+$out_html .= "num_with_rubbish: $num_with_rubbish  <br/>\n";
 $out_html .= "keys_with_rubbish: $key_with_rubbish <br/>\n";
 
 $out_html .= "\n</body></html>";

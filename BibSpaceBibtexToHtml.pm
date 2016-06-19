@@ -7,9 +7,9 @@ package BibSpaceBibtexToHtml;
   use Cwd;
   use File::Slurp;
   use Moose;
-  use TeX::Encode;
-  use Encode;
-  use Text::Balanced;
+  use Pod::LaTeX;
+
+
 
   has 'bst' => (is => 'rw', isa => 'Str');
   has 'bib' => (is => 'rw', isa => 'Str');
@@ -52,6 +52,7 @@ sub html_contains_em {
 sub bbl_clean_contains_rubbish {
   my $self = shift;
   my $result = 0;
+  $result = 1 if $self->{bbl_clean} =~ m!bibitem!;
   $result = 1 if $self->{bbl_clean} =~ m!{!;
   $result = 1 if $self->{bbl_clean} =~ m!}!;
   $result = 1 if $self->{bbl_clean} =~ m!\\!;
@@ -200,21 +201,14 @@ sub _clean_bbl {
 
   $s =~ s/\\newblock/\n\\newblock/g; # every newblock = newline
   $s =~ s/\\bibitem\{([^\}.]*)\}/\\bibitem\{$1\}\n/; # new line after the bibtex key
-  
+
   my ($bibtex_key, $rest) = $s =~ m/\\bibitem\{([^\}.]*)\}(.*)/; # match until the first closing bracket
   # extract the bibtex key and the rest - just in case you need it 
-  # say "bibtex_key $bibtex_key";
 
-  $s =~ s/\\bibitem\{([^\}.]*)\}\n?//; #remove first line with bibitem
-
-  # $s =~ s/\{\\em\s*([^\}.]*)\}/{<span class="em">$1<\/span>}/; # tag journal name: {\em $1} -> {<em>$1</em>}
-  # $s =~ s/\\newblock\s+\{([^\}.]*)\s*\}/$1/g; # extract content of the newblock: \newblock{$1} -> $1
-  # say $s;
-
+  $s =~ s/\\bibitem\{(.*)\}\n?//; #remove first line with bibitem
   $s =~ s/\\newblock\s+//g; # remove newblocks
 
 
-  
   # nested parenthesis cannot be handled with regexp :(
   # I use this because it counts brackets!
   # string_replace_with_counting($s, $opening, $closing, $avoid_l, $avoid_r, $opening_replace, $closing_replace)
@@ -225,10 +219,16 @@ sub _clean_bbl {
   # find all that is between {}, count all pairs of {} replace the outermost with nothing
   # does {zzz {aaa} ggg} => zzz {aaa} ggg
 
+  $s = string_replace_with_counting($s, '\\url{', '}', '{', '}', '<span class="url">', '</span>');
 
+
+
+  $s = str_replace_as_pod_latex($s);  # this should cath everything
+  # and here are the custom replacement functions in case something goes wrong...
   $s = str_replace_handle_tilde($s);
   $s = str_replace_german_letters($s);
   $s = str_replace_polish_letters($s);
+  $s = str_replace_other_lanugages_letters($s);
 
   my $new_s = "";
   $new_s = string_replace_with_counting($s, '{', '}', '{', '}', '', '');
@@ -312,6 +312,250 @@ sub build_link {
   return "<a href=\"$value\" target=\"_blank\">$name</a>";
 
 }
+
+
+
+
+
+####### CORE
+####################################################################################
+sub str_replace_as_pod_latex {
+my $s = shift;
+
+
+  my %h = %Pod::LaTeX::HTML_Escapes;
+
+  while(my($html, $tex) = each %h){
+    next if $tex =~ m/^\$/;
+    next if $html eq 'verbar'; # because it changes every letter to letter with vertialbar
+
+    next if $tex eq '<';  # we want our html to stay
+    next if $tex eq '>';  # we want our html to stay
+    next if $tex eq '"';  # we want our html to stay
+    next if $tex eq '\''; # we want our html to stay
+
+    # escaping the stuff 
+    $tex =~ s!\{!\\\{!g;
+    $tex =~ s!\}!\\\}!g;
+    $tex =~ s!\\!\\\\!g;
+
+
+
+    # say "tex $tex";
+    $s =~ s!$tex!&$html;!g;  
+  } 
+
+
+  $s;
+}
+####################################################################################
+sub str_replace_handle_tilde {
+  my $s = shift;
+  $s =~ s!~!&nbsp;!g;
+
+  $s;
+}
+####################################################################################
+sub str_replace_polish_letters {
+  my $s = shift;
+
+
+  $s =~ s!\\k\{A\}!&#260;!g;
+  $s =~ s!\\k\{a\}!&#261;!g;
+  $s =~ s!\\k\{E\}!&#280;!g;
+  $s =~ s!\\k\{e\}!&#281;!g;
+
+  $s =~ s!\\L\{\}!&#321;!g;
+  $s =~ s!\\l\{\}!&#322;!g;
+
+  $s =~ s!\{\\L\}!&#321;!g; # people may have imagination
+  $s =~ s!\{\\l\}!&#322;!g;
+
+  $s =~ s!\\\.\{Z\}!&#379;!g;
+  $s =~ s!\\\.\{z\}!&#380;!g;
+
+  $s =~ s!\{\\\.Z\}!&#379;!g; #imagination again
+  $s =~ s!\{\\\.z\}!&#380;!g;
+# 
+  # $s = decode('latex', $s); # does not work :(
+
+  # http://www.utf8-chartable.de/unicode-utf8-table.pl
+
+  $s = delatexify($s, '\'', 'Z', '&#377;');
+  $s = delatexify($s, '\'', 'z', '&#378;');
+  $s = delatexify($s, '\'', 'S', '&#346;');
+  $s = delatexify($s, '\'', 's', '&#347;');
+  $s = delatexify($s, '\'', 'C', '&#262;');
+  $s = delatexify($s, '\'', 'c', '&#263;');
+  $s = delatexify($s, '\'', 'N', '&#323;');
+  $s = delatexify($s, '\'', 'n', '&#324;');
+  $s = delatexify($s, '\'', 'O', '&#211;');
+  $s = delatexify($s, '\'', 'o', '&#243;');
+
+  $s;
+}
+####################################################################################
+sub str_replace_german_letters {
+  my $s = shift;
+
+  # say "before replace: $s";
+
+  $s =~ s!\\ss\{\}!&#223;!g;
+  $s =~ s!\\ss!&#223;!g;
+
+
+  $s = delatexify($s, '"', 'A', '&#196;');
+  $s = delatexify($s, '"', 'a', '&#228;');
+  $s = delatexify($s, '"', 'O', '&#214;');
+  $s = delatexify($s, '"', 'o', '&#246;');
+  $s = delatexify($s, '"', 'U', '&#220;');
+  $s = delatexify($s, '"', 'u', '&#252;');
+
+  $s;
+}
+####################################################################################
+sub str_replace_other_lanugages_letters {
+  my $s = shift;
+  
+  $s = delatexify($s, '\'', 'E', '&#201;');  # E with accent line pointing to the right
+  $s = delatexify($s, '\'', 'e', '&#233;');
+
+  $s = delatexify($s, '\'', 'A', '&#193;');
+  $s = delatexify($s, '\'', 'a', '&#225;');
+
+  $s = delatexify($s, '\'', 'I', '&#205;');
+  $s = delatexify($s, '\'', 'i', '&#237;');
+  
+
+  $s = delatexify($s, '"', 'E', '&#203;');  # E with two dots (FR)
+  $s = delatexify($s, '"', 'e', '&#235;');
+
+
+  $s = delatexify($s, 'c', 'S', '&#268;');  # C with hacek (CZ)
+  $s = delatexify($s, 'c', 's', '&#269;');
+
+  $s;
+}
+####################################################################################
+sub delatexify {
+  my ($s, $accent, $src, $dest) = @_;
+
+  $s =~ s!\\$accent\{$src\}!$dest!g;
+  $s =~ s!\{\\$accent$src\}!$dest!g;
+  $s =~ s!\\\{$accent$src\}!$dest!g;
+  $s =~ s!\{$accent$src\}!$dest!g;
+  $s =~ s!\\$accent$src!$dest!g;
+
+  $s;
+}
+####################################################################################
+sub string_replace_with_counting {
+  my ($s, $opening, $closing, $avoid_l, $avoid_r, $opening_replace, $closing_replace) = @_;
+  
+  my $opening_len = length $opening;
+  my $closing_len = length $closing;
+
+  # $s = 'some szit {\em ddd c {{ ss} ssdfes {ddd} }dssddsw }ee';
+
+  # say "======== string_replace_with_counting opening $opening closing $closing  ========";
+
+  my $index_opening = -1;
+  my $found_em = 0;
+  my $index_closing = -1;
+
+  my @str_arr = split //, $s;
+  my $max = scalar @str_arr;
+
+  my $l_brackets=0;
+  my $r_brackets=0;
+
+  for (my $i=0 ; $i < $max and $index_closing==-1 ; $i=$i+1) {  # we break when we find the first match
+    my $c = $str_arr[$i];
+
+    # say "$i - $c - L $l_brackets R $r_brackets == $found_em" if $opening eq '{';
+
+    if($found_em==1){
+
+      if($c eq $avoid_l){
+        $l_brackets = $l_brackets + 1;
+      }
+      if($c eq $avoid_r){
+        if($l_brackets==$r_brackets){
+          $index_closing = $i;
+        }
+        if($l_brackets > 0){
+          $r_brackets = $r_brackets + 1;
+        }
+      }
+    }
+    # if($c eq '{' and 
+    #    $i+34 < $max and 
+    #    $str_arr[$i+1] eq '\\' and 
+    #    $str_arr[$i+2] eq 'e' and
+    #    $str_arr[$i+3] eq 'm')
+    if($found_em == 0 and substr($s, $i, $opening_len) eq $opening)
+    {
+      $index_opening = $i;
+      $found_em = 1;
+    }
+  }
+  # say "index_opening: $index_opening";
+  # say "index_closing: $index_closing";
+
+  if($found_em == 1){
+    unless(
+            ($index_opening == -1 and $index_closing == -1) or # both -1 are ok = no {\em ..}
+            (  
+              $index_opening > 0 and 
+              $index_closing > 0 and    
+              $index_closing > $index_opening
+            )
+          )
+    {
+      my $warn = "Indices are messed! No change made to string: ".substr($s, 0, 30)." ...\n";
+      $warn .= "index_opening $index_opening index_closing $index_closing ".$index_opening*$index_closing."\n";
+
+      warn $warn;
+
+    }
+    else{
+      substr($s, $index_closing, $closing_len, $closing_replace); # first closing beacuse it changes the index!!!
+      substr($s, $index_opening, $opening_len, $opening_replace);  
+
+      # say "CHANGING OK:  $s";
+
+    }
+  }
+  else{
+    # say "EM not found in  ".substr($s, 0, 30)." ...\n";
+  }
+
+  # say "======== string_replace_with_counting END ========";
+  return $s;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ####################################################################################
@@ -422,180 +666,3 @@ sub tune_html_old{
 }
 ####################################################################################
 1;
-
-
-####### CORE
-####################################################################################
-sub str_replace_handle_tilde {
-  my $s = shift;
-  $s =~ s!~!&nbsp;!g;
-
-  $s;
-}
-####################################################################################
-sub str_replace_polish_letters {
-  my $s = shift;
-
-
-  $s =~ s!\\k\{A\}!&#260;!g;
-  $s =~ s!\\k\{a\}!&#261;!g;
-  $s =~ s!\\k\{E\}!&#280;!g;
-  $s =~ s!\\k\{e\}!&#281;!g;
-
-  $s =~ s!\\L\{\}!&#321;!g;
-  $s =~ s!\\l\{\}!&#322;!g;
-
-  $s =~ s!\{\\L\}!&#321;!g; # people may have imagination
-  $s =~ s!\{\\l\}!&#322;!g;
-
-  $s =~ s!\\\.\{Z\}!&#379;!g;
-  $s =~ s!\\\.\{z\}!&#380;!g;
-  # $s =~ s!\\l\{\}!l!g;
-# 
-  # $s = decode('latex', $s);
-
-  $s = delatexify_polish($s, 'Z', '&#377;');
-  $s = delatexify_polish($s, 'z', '&#378;');
-
-  $s = delatexify_polish($s, 'S', '&#346;');
-  $s = delatexify_polish($s, 's', '&#347;');
-
-  $s = delatexify_polish($s, 'C', '&#262;');
-  $s = delatexify_polish($s, 'c', '&#263;');
-
-  $s = delatexify_polish($s, 'N', '&#323;');
-  $s = delatexify_polish($s, 'n', '&#324;');
-
-  $s = delatexify_polish($s, 'O', '&#211;');
-  $s = delatexify_polish($s, 'o', '&#243;');
-
-  $s;
-}
-####################################################################################
-sub delatexify_polish {
-  my ($s, $src, $dest) = @_;
-
-  $s =~ s!\\\'\{$src\}!$dest!g;  # the users should use this
-  $s =~ s!\'\{$src\}!$dest!g; # but sometimes they use this
-  $s =~ s!\\\'$src!$dest!g; # or this
-  # $s =~ s!\'$src!$dest!g; # or even this, but we do not support it as many things may go wrong due to that
-
-  $s;
-}
-####################################################################################
-sub str_replace_german_letters {
-  my $s = shift;
-
-  # say "before replace: $s";
-
-  $s =~ s!\\ss\{\}!&#223;!g;
-  $s =~ s!\\ss!&#223;!g;
-  
-  $s = delatexify_german($s, 'A', '&#196;');
-  $s = delatexify_german($s, 'a', '&#228;');
-  $s = delatexify_german($s, 'O', '&#214;');
-  $s = delatexify_german($s, 'o', '&#246;');
-  $s = delatexify_german($s, 'U', '&#220;');
-  $s = delatexify_german($s, 'u', '&#252;');
-
-  # say "after replace: $s";
-
-  $s;
-}
-####################################################################################
-sub delatexify_german {
-  my ($s, $src, $dest) = @_;
-
-  $s =~ s!\\\"\{$src\}!$dest!g;
-  $s =~ s!\{\\\"$src\}!$dest!g;
-  $s =~ s!\\\{\"$src\}!$dest!g;
-  $s =~ s!\{\"$src\}!$dest!g;
-  $s =~ s!\\\"$src!$dest!g;
-
-  $s;
-}
-####################################################################################
-sub string_replace_with_counting {
-  my ($s, $opening, $closing, $avoid_l, $avoid_r, $opening_replace, $closing_replace) = @_;
-  
-  my $opening_len = length $opening;
-  my $closing_len = length $closing;
-
-  # $s = 'some szit {\em ddd c {{ ss} ssdfes {ddd} }dssddsw }ee';
-
-  # say "======== string_replace_with_counting opening $opening closing $closing  ========";
-
-  my $index_opening = -1;
-  my $found_em = 0;
-  my $index_closing = -1;
-
-  my @str_arr = split //, $s;
-  my $max = scalar @str_arr;
-
-  my $l_brackets=0;
-  my $r_brackets=0;
-
-  for (my $i=0 ; $i < $max and $index_closing==-1 ; $i=$i+1) {  # we break when we find the first match
-    my $c = $str_arr[$i];
-
-    # say "$i - $c - L $l_brackets R $r_brackets == $found_em" if $opening eq '{';
-
-    if($found_em==1){
-
-      if($c eq $avoid_l){
-        $l_brackets = $l_brackets + 1;
-      }
-      if($c eq $avoid_r){
-        if($l_brackets==$r_brackets){
-          $index_closing = $i;
-        }
-        if($l_brackets > 0){
-          $r_brackets = $r_brackets + 1;
-        }
-      }
-    }
-    # if($c eq '{' and 
-    #    $i+34 < $max and 
-    #    $str_arr[$i+1] eq '\\' and 
-    #    $str_arr[$i+2] eq 'e' and
-    #    $str_arr[$i+3] eq 'm')
-    if($found_em == 0 and substr($s, $i, $opening_len) eq $opening)
-    {
-      $index_opening = $i;
-      $found_em = 1;
-    }
-  }
-  # say "index_opening: $index_opening";
-  # say "index_closing: $index_closing";
-
-  if($found_em == 1){
-    unless(
-            ($index_opening == -1 and $index_closing == -1) or # both -1 are ok = no {\em ..}
-            (  
-              $index_opening > 0 and 
-              $index_closing > 0 and    
-              $index_closing > $index_opening
-            )
-          )
-    {
-      my $warn = "Indices are messed! No change made to string: ".substr($s, 0, 30)." ...\n";
-      $warn .= "index_opening $index_opening index_closing $index_closing ".$index_opening*$index_closing."\n";
-
-      warn $warn;
-
-    }
-    else{
-      substr($s, $index_closing, $closing_len, $closing_replace); # first closing beacuse it changes the index!!!
-      substr($s, $index_opening, $opening_len, $opening_replace);  
-
-      # say "CHANGING OK:  $s";
-
-    }
-  }
-  else{
-    # say "EM not found in  ".substr($s, 0, 30)." ...\n";
-  }
-
-  # say "======== string_replace_with_counting END ========";
-  return $s;
-}

@@ -199,13 +199,13 @@ sub _clean_bbl {
 
   # say "\nXXXX1\n".$s."\nXXXX\n";
 
-  $s =~ s/\\newblock/\n\\newblock/g; # every newblock = newline
-  $s =~ s/\\bibitem\{([^\}.]*)\}/\\bibitem\{$1\}\n/; # new line after the bibtex key
+  $s =~ s/\\newblock/\n\\newblock/g; # every newblock = newline in bbl (but not in html!)
+  $s =~ s/\\bibitem\{([^\}]*)\}/\\bibitem\{$1\}\n/; # new line after the bibtex key
 
   my ($bibtex_key, $rest) = $s =~ m/\\bibitem\{([^\}.]*)\}(.*)/; # match until the first closing bracket
   # extract the bibtex key and the rest - just in case you need it 
 
-  $s =~ s/\\bibitem\{(.*)\}\n?//; #remove first line with bibitem
+  $s =~ s/\\bibitem\{([^\}]*)\}\n?//; #remove first line with bibitem
   $s =~ s/\\newblock\s+//g; # remove newblocks
 
 
@@ -223,12 +223,13 @@ sub _clean_bbl {
 
 
 
-  $s = str_replace_as_pod_latex($s);  # this should cath everything
+  
   # and here are the custom replacement functions in case something goes wrong...
-  $s = str_replace_handle_tilde($s);
   $s = str_replace_german_letters($s);
   $s = str_replace_polish_letters($s);
   $s = str_replace_other_lanugages_letters($s);
+
+  $s = str_replace_handle_tilde($s);
 
   my $new_s = "";
   $new_s = string_replace_with_counting($s, '{', '}', '{', '}', '', '');
@@ -236,6 +237,8 @@ sub _clean_bbl {
     $s = $new_s;
     $new_s = string_replace_with_counting($s, '{', '}', '{', '}', '', '');
   }
+
+  $s = str_replace_as_pod_latex($s);  # this should catch everything but it doesn't
 
   $s =~ s!\\%!&#37;!g; # replace % escape
   $s =~ s!\\&!&#38;!g; # replace & escape
@@ -340,9 +343,13 @@ my $s = shift;
     $tex =~ s!\\!\\\\!g;
 
 
+    $s =~ s![{}]!!g; # you need to remove this before decoding...
 
-    # say "tex $tex";
-    $s =~ s!$tex!&$html;!g;  
+    # say "tex $tex -> $html" if $html =~ /ouml/;
+    # say "BEFORE $s" if $html =~ /ouml/;
+    $s =~ s!$tex!&$html;!g;
+    # say "AFTER $s" if $html =~ /ouml/;
+
   } 
 
 
@@ -430,9 +437,11 @@ sub str_replace_other_lanugages_letters {
   $s = delatexify($s, '"', 'E', '&#203;');  # E with two dots (FR)
   $s = delatexify($s, '"', 'e', '&#235;');
 
+  $s = delatexify($s, 'c', 'C', '&#268;');  # C with hacek (CZ)
+  $s = delatexify($s, 'c', 'c', '&#269;');
 
-  $s = delatexify($s, 'c', 'S', '&#268;');  # C with hacek (CZ)
-  $s = delatexify($s, 'c', 's', '&#269;');
+  $s = delatexify($s, 'c', 'S', '&#352;');  # S with hacek (CZ)
+  $s = delatexify($s, 'c', 's', '&#353;');
 
   $s;
 }

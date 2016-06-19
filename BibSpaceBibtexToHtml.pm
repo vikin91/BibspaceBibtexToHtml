@@ -578,7 +578,7 @@ sub string_replace_with_counting {
             )
           )
     {
-      my $warn = "Indexes are messed! No change made to string: ".substr($s, 0, 30)." ...\n";
+      my $warn = "Indices are messed! No change made to string: ".substr($s, 0, 30)." ...\n";
       $warn .= "index_opening $index_opening index_closing $index_closing ".$index_opening*$index_closing."\n";
 
       warn $warn;

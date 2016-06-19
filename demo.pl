@@ -1,38 +1,42 @@
-
 use strict;
 use warnings;
 use v5.10;
 use Data::Dumper;
 use Time::HiRes qw( time );
 
-#http://cpansearch.perl.org/src/NODINE/Text-BibTeX-BibStyle-0.03/lib/Text/BibTeX/BibStyle.pm
+# Based on Text::BibTeX::BibStyle : http://cpansearch.perl.org/src/NODINE/Text-BibTeX-BibStyle-0.03/lib/Text/BibTeX/BibStyle.pm
+
 use FindBin;
 use lib $FindBin::Bin;
 use BibSpaceBibtexToHtml;
 use DemoHelper;
+use Storable;
 
 my $how_many = $ARGV[0] // 10;
 my @demo_helpers = ();
 
-use DBI;
-my $dbh = DBI->connect("DBI:mysql:database=bibspace;host=localhost","bibspace_user", "passw00rd",{'RaiseError' => 1});
-my $cmd = "mysql -u bibspace_user -ppassw00rd bibspace  < ../publiste/fixture/db.sql";
-`$cmd`;
-
-my $qry = "SELECT DISTINCT id, bib FROM Entry LIMIt 0,$how_many";
-my $sth = $dbh->prepare( $qry );
-$sth->execute();
-while(my $row = $sth->fetchrow_hashref()) {
-
-  my $z = DemoHelper->new();
-  $z->{id} = "you don't need this";
-  $z->{bib} = $row->{bib};
-  push @demo_helpers, $z;
-}
+# use DBI;
+# my $dbh = DBI->connect("DBI:mysql:database=bibspace;host=localhost","bibspace_user", "passw00rd",{'RaiseError' => 1});
+# my $cmd = "mysql -u bibspace_user -ppassw00rd bibspace  < ../publiste/fixture/db.sql";
+# `$cmd`;
+# my $qry = "SELECT DISTINCT id, bib FROM Entry";
+# my $sth = $dbh->prepare( $qry );
+# $sth->execute();
+# while(my $row = $sth->fetchrow_hashref()) {
+#   my $z = DemoHelper->new();
+#   $z->{id} = "you don't need this";
+#   $z->{bib} = $row->{bib};
+#   push @demo_helpers, $z;
+# }
 
 
+# store \@demo_helpers, 'test_data.dat';
+my $arr_ref = retrieve('test_data.dat');
+say Dumper $arr_ref;
+@demo_helpers = @{$arr_ref};
+# die;
 
-my @strange_bibzz;
+my @strange_bibz;
 {
   my $zs1 = DemoHelper->new();
   $zs1->{id} = "0";
@@ -47,7 +51,7 @@ my @strange_bibzz;
      year = {2010},
    }';
 
-   push @strange_bibzz, $zs1;
+   push @strange_bibz, $zs1;
 }
 {
   my $zs1 = DemoHelper->new();
@@ -67,7 +71,7 @@ my @strange_bibzz;
   year = {2010},
 }';
 
-   push @strange_bibzz, $zs1;
+   push @strange_bibz, $zs1;
 }
 {
   my $zs1 = DemoHelper->new();
@@ -85,13 +89,13 @@ my @strange_bibzz;
   pdf = {http://example.com////pa/publications/download/paper/924.pdf},
 }';
 
-   push @strange_bibzz, $zs1;
+   push @strange_bibz, $zs1;
 }
 
 #uncomment to test strange bibz
 
-if(@strange_bibzz and !@demo_helpers){
-  @demo_helpers = @strange_bibzz;
+if(@strange_bibz and !@demo_helpers){
+  @demo_helpers = @strange_bibz;
 }
 
 my %hist;
@@ -223,8 +227,8 @@ $out_html .= "<h3>Checks:</h3>\n";
 $out_html .= "<h4>If all below fields are 0 or empty then the 'test' is passed.</h4>\n";
 $out_html .= "num_with_em: $num_with_em <br/>\n";
 $out_html .= "key_with_em: $key_with_em <br/>\n";
-$out_html .= "num_with_rubbish: $num_with_rubbish <br/>\n";
-$out_html .= "key_with_rubbish: $key_with_rubbish <br/>\n";
+$out_html .= "num_with_rubbish: $num_with_rubbish (possibly due to other languages than Polish and German)<br/>\n";
+$out_html .= "keys_with_rubbish: $key_with_rubbish <br/>\n";
 
 $out_html .= "\n</body></html>";
 
